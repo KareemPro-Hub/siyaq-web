@@ -2,9 +2,12 @@
 
 التصميم والشعار من أصول مشروع سِياق. حقوق الهوية محفوظة لصاحب المشروع؛ تراخيص المكونات الخارجية لا تمنح حق إعادة استخدام الهوية.
 
-خط الموقع Markazi Text (Borna Izadpanah وFlorian Runge وFiona Ross) بترخيص SIL OFL 1.1 المحفوظ في src/fonts/LICENSE-MarkaziText.txt، من مستودع Google Fonts الرسمي، محوّلًا إلى WOFF2 دون تعديل الرسم.
+خطا الموقع من مستودع Google Fonts الرسمي، بملفاتهما الأصلية دون تعديل، ومستضافان محليًا دون اتصال بخوادم Google وقت الزيارة:
 
-QuranMarks علامات مشتقة من Amiri؛ رخصة SIL OFL محفوظة في src/fonts/LICENSE-QuranMarks.txt.
+- Scheherazade New (SIL Global): الواجهة والتفسير، بأوزان ٤٠٠ و٥٠٠ و٧٠٠. الرخصة في src/fonts/LICENSE-ScheherazadeNew.txt.
+- Amiri Quran: النص القرآني الأصلي، بوزن ٤٠٠ فقط. الرخصة في src/fonts/LICENSE-AmiriQuran.txt.
+
+الخطان برخصة SIL OFL 1.1، وتحفظ حقوق المؤلف والأسماء المحجوزة. ملفات الخطوط تغطي الحروف وعلامات الوقف في بيانات القرآن الحالية؛ لا خط علامات مساعد ولا تخانة مصطنعة.
 
 رخصة بيانات Quranpedia محفوظة في data/source/LICENSE.md وسجل البصمات في data/provenance.json. لا تغير نسب الكتب أو إصدار البيانات.
 # قارئ الصور المحلي
