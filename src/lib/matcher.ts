@@ -1,5 +1,6 @@
 import { editDistance, normalizeSearch, prepareSearch } from "./normalize";
 import type { Candidate, ReviewResult, Tafsir, Verse } from "./types";
+import { InputError } from "./api";
 
 const LIMIT = 12;
 const NOTE = "تُوحَّد علامات التشكيل وبعض صور الهمزة والرسم للبحث فقط؛ النص الأصلي معروض كما ورد في المصدر.";
@@ -144,9 +145,9 @@ export function createMatcher(verses: Verse[], tafsir: Record<string, Tafsir[]>,
   }
 
   return function review(quote: string, selection?: string): ReviewResult {
-    if (typeof quote !== "string" || quote.length > 1000) throw new Error("ضع اقتباسًا لا يتجاوز ١٠٠٠ حرف.");
+    if (typeof quote !== "string" || quote.length > 1000) throw new InputError("ضع اقتباسًا لا يتجاوز ١٠٠٠ حرف.");
     const {query: normalized, ignored} = prepareSearch(quote);
-    if (normalized.length < 5 || normalized.split(" ").length < 2) throw new Error("اكتب كلمتين على الأقل حتى نتمكن من تحديد موضع الاقتباس.");
+    if (normalized.length < 5 || normalized.split(" ").length < 2) throw new InputError("اكتب كلمتين على الأقل حتى نتمكن من تحديد موضع الاقتباس.");
     let candidates = exact(normalized);
     const hasExact = candidates.length > 0;
     let method: ReviewResult["search"]["method"] = hasExact ? "exact" : "none";
@@ -156,7 +157,7 @@ export function createMatcher(verses: Verse[], tafsir: Record<string, Tafsir[]>,
       else {candidates = possible(normalized); if (candidates.length) method = "similar";}
     }
     const requested = selection ? candidates.find(c => c.id === selection) : null;
-    if (selection && !requested) throw new Error("اختر موضعًا من نتائج الاقتباس الحالي.");
+    if (selection && !requested) throw new InputError("اختر موضعًا من نتائج الاقتباس الحالي.");
     const selected = requested ?? (hasExact && candidates.length === 1 ? candidates[0] : null);
     const context: Verse[] = [];
     if (selected) {

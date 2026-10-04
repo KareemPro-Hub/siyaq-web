@@ -23,6 +23,7 @@ export function ImageReader({onText,busy,onBusyChange}:{onText:(text:string)=>vo
   setError('');setStatus('نجهّز قراءة الصورة على جهازك…');setPending(true);
   let active:Worker|null=null;
   let timer:ReturnType<typeof setTimeout>|undefined;
+  let stage:'image'|'load'|'read'='image';
   try{
    validateImageFile(file);
    const url=URL.createObjectURL(file);releaseImage();imageURL.current=url;
@@ -36,19 +37,22 @@ export function ImageReader({onText,busy,onBusyChange}:{onText:(text:string)=>vo
    const canvas=document.createElement('canvas');canvas.width=Math.round(image.naturalWidth*scale);canvas.height=Math.round(image.naturalHeight*scale);
    const context=canvas.getContext('2d');if(!context)throw Error('تعذرت قراءة الصورة في هذا المتصفح.');
    context.fillStyle='#fff';context.fillRect(0,0,canvas.width,canvas.height);context.drawImage(image,0,0,canvas.width,canvas.height);
+   // المهلة تشمل تحميل القارئ نفسه: على اتصال ضعيف قد يتعطل التحميل دون خطأ.
+   stage='load';
+   timer=setTimeout(()=>{if(run.current===id){run.current++;void worker.current?.terminate();worker.current=null;setPending(false);setError(stage==='load'?'استغرق تحميل قارئ الصور وقتًا طويلًا، وقد يكون الاتصال ضعيفًا. أعد المحاولة أو اكتب الاقتباس يدويًا.':'استغرقت القراءة وقتًا طويلًا. قصّ الاقتباس من الصورة أو اكتبه يدويًا.');setStatus('');}},90000);
    const {createWorker,OEM,PSM}=await import('tesseract.js');
    if(run.current!==id)return;
-   timer=setTimeout(()=>{if(run.current===id){run.current++;void worker.current?.terminate();worker.current=null;setPending(false);setError('استغرقت القراءة وقتًا طويلًا. قصّ الاقتباس من الصورة أو اكتبه يدويًا.');setStatus('');}},90000);
    active=await createWorker('ara',OEM.LSTM_ONLY,{workerPath:'/ocr/worker.min.js',corePath:'/ocr/core',langPath:'/ocr/lang',workerBlobURL:false,logger:message=>{if(run.current===id)setStatus(message.status==='recognizing text'?`نقرأ النص… ${Math.round(message.progress*100)}٪`:'نجهّز قارئ العربية على جهازك…');}});
    if(run.current!==id){await active.terminate();return;}
    worker.current=active;
    await active.setParameters({tessedit_pageseg_mode:PSM.SINGLE_BLOCK,user_defined_dpi:'300'});
+   stage='read';
    const {data}=await active.recognize(canvas);
    if(run.current!==id)return;
    const text=validateExtractedText(data.text);
    onText(text);
    setStatus(data.confidence<60?'استُخرج النص. القراءة غير واضحة وقد تحتوي أخطاء كثيرة؛ صحّحه قبل المراجعة أو اكتبه يدويًا.':'استُخرج النص. راجعه وصحّحه أو حدّد الاقتباس قبل الضغط على «راجع الاقتباس».');
-  }catch(e){if(run.current===id){setError(e instanceof Error&&/^(اختر|أبعاد|تعذرت|لم نقرأ|الصورة)/.test(e.message)?e.message:'تعذرت قراءة الصورة. جرّب صورة أوضح أو اكتب الاقتباس.');setStatus('');}}
+  }catch(e){if(run.current===id){setError(e instanceof Error&&/^(اختر|أبعاد|تعذرت|لم نقرأ|الصورة)/.test(e.message)?e.message:stage==='load'?'تعذر تحميل قارئ الصور، وقد يكون الاتصال ضعيفًا. أعد المحاولة أو اكتب الاقتباس يدويًا.':stage==='image'?'تعذر فتح هذه الصورة. اختر صورة PNG أو JPEG أو WebP سليمة، أو اكتب الاقتباس.':'تعذرت قراءة الصورة. جرّب صورة أوضح أو اكتب الاقتباس.');setStatus('');}}
   finally{clearTimeout(timer);if(active){if(worker.current===active)worker.current=null;await active.terminate().catch(()=>{});}if(run.current===id)setPending(false);}
  }
  return <div className="image-reader">

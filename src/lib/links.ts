@@ -29,7 +29,7 @@ export function dorarPassage(surah: number, ayah: number): {firstAyah: number; l
   return {firstAyah: index === 0 ? 1 : ends[index - 1] + 1, lastAyah: ends[index], url: `https://dorar.net/tafseer/14/${index + 1}`};
 }
 
-// قائمة «المصادر» في «عن سِياق»: ما تستخدمه النتائج فعلًا فقط، بدوره ورابطه العام (طلب كريم ٣ أكتوبر).
+// قائمة «المصادر» في «عن سِياق»: ما تستخدمه النتائج فعلًا فقط، بدوره ورابطه العام.
 // كتاب التفسير لا يدخل إلا إذا كانت بياناته محمّلة، ونمط رابطه مفحوصًا، وشرطه في المرجعية مثبتًا (source-policy.json).
 // الدرر السنية لا تُدرج مصدرًا للبيانات قبل ربط نصوصها؛ الإحالة الخارجية إلى مقطع مفحوص فقط.
 export type AboutSource = {title: string; role: string; url: string; tafsirBookId: number | null};

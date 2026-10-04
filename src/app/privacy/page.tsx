@@ -1,7 +1,7 @@
 import type {Metadata} from 'next';
 import Link from 'next/link';
 
-export const metadata: Metadata = {title: 'سياسة الخصوصية'};
+export const metadata: Metadata = {title: 'سياسة الخصوصية', description: 'كيف يتعامل موقع سِياق وتطبيق الآيفون مع الاقتباس والصورة والسجلات التقنية.'};
 
 export default function Privacy() {
   return <main id="main" className="reading-page"><div className="reading-inner">
@@ -26,10 +26,10 @@ export default function Privacy() {
     </section>
     <section className="reading-section"><h2>التفسير والمشاركة والروابط</h2>
       <p>نسترجع التفسير الأصلي المتاح من المصادر المحددة؛ لا نولّد آيات أو تفسيرًا جديدًا، ولا نرسل اقتباسك إلى خدمة ذكاء اصطناعي خارجية.</p>
-      <p>زر النسخ يكتب النص والمرجع في الحافظة عند ضغطك فقط. عند المشاركة، تختار الجهة التي تستقبل النتيجة باستخدام خيارات النظام. الروابط الخارجية تفتح مواقع مصادرها وتخضع لسياساتها.</p>
+      <p>زر النسخ يكتب النص والمرجع في الحافظة عند ضغطك فقط. في تطبيق الآيفون، عند المشاركة، تختار الجهة التي تستقبل النتيجة باستخدام خيارات النظام. الروابط الخارجية تفتح مواقع مصادرها وتخضع لسياساتها.</p>
     </section>
     <section className="reading-section"><h2>التواصل بخصوص بياناتك</h2>
-      <p>للاستفسار عن الخصوصية أو طلب المساعدة، راسلنا على <a href="mailto:Egy.Kareem.AI@gmail.com" dir="ltr">Egy.Kareem.AI@gmail.com</a>. ما ترسله في رسالة الدعم يُستخدم للرد على طلبك؛ لا ترسل معلومات حساسة غير لازمة.</p>
+      <p>للاستفسار عن الخصوصية أو طلب المساعدة، راسلنا على <a href="mailto:contact@mysiyaq.com" dir="ltr">contact@mysiyaq.com</a>. ما ترسله في رسالة الدعم يُستخدم للرد على طلبك. يُستضاف بريد الدعم لدى Dynadot، وتُحوَّل نسخة من رسائله إلى Gmail لمتابعتها؛ لا ترسل معلومات حساسة غير لازمة.</p>
     </section>
     <Link className="reading-cta" href="/support">الدعم والمساعدة</Link>
     <Link className="reading-cta" href="/">العودة إلى سِياق</Link>
