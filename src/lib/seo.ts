@@ -8,7 +8,7 @@ export const SITE_URL = `https://${SITE_HOST}`;
 export const NOINDEX = "noindex, nofollow, noarchive";
 // رمز التحقق من ملكية الموقع في Google Search Console (طريقة «علامة HTML» لخاصية https://www.mysiyaq.com/).
 // يُنسخ من Search Console بحساب سِياق ويوضع هنا قبل النشر؛ فارغًا لا تُضاف أي علامة. الرمز علني بطبيعته وليس سرًا.
-export const GOOGLE_SITE_VERIFICATION = "";
+export const GOOGLE_SITE_VERIFICATION = "NFrSdwSUUaMNq4IDvPEfLSxLRTMWBU0oqauibBeqmrM";
 
 export const INDEXABLE_PAGES = [
   {path: "/", title: "سِياق — مراجعة الاقتباس القرآني في سياقه", description: "اكتب اقتباسًا قرآنيًا أو اختر صورة، واعرف موضعه في المصحف مع الآيات المحيطة والتفسير الأصلي المتاح ومرجعه."},
