@@ -1,0 +1,20 @@
+{
+  "engine": "Tesseract.js 7.0.0",
+  "source": "https://github.com/tesseract-ocr/tessdata_fast",
+  "revision": "87416418657359cb625c412a48b6e1d6d41c29bd",
+  "license": "Apache-2.0",
+  "files": [
+    {
+      "language": "ara",
+      "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/ara.traineddata",
+      "sha256": "cd8249e6f8bb074322496128110763a8585ae495d5616316a96f4323e25540bb",
+      "bytes": 721935
+    },
+    {
+      "language": "eng",
+      "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/eng.traineddata",
+      "sha256": "2117c3d97e7c433d366139ce1f8a13e629167f901bcad9cbc7f177583b1c5109",
+      "bytes": 1975928
+    }
+  ]
+}

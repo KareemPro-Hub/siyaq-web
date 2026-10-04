@@ -1,0 +1,55 @@
+{
+  "version": "2026-10-02",
+  "committee_document_sha256": "8468b7408c002fe2419305c24146a1c59711b1a9472bab791d5422d9ebaa9437",
+  "quran": {
+    "provider": "quranpedia.net",
+    "allowed_by": "النص والرسم المعتمد من الموسوعة القرآنية — ص٣",
+    "verses": 6236,
+    "surahs": 114,
+    "canonical_comparison": "exact_all_verses"
+  },
+  "tafsir_books": [
+    {
+      "bookId": 269,
+      "name": "تفسير مجاهد",
+      "authorDeathAH": 104,
+      "policyBasis": "مصادر التفسير في القرون الثلاثة الأولى — ص٣",
+      "metadataURL": "https://quranpedia.net/book/269",
+      "edition": "الأولى١٤١٠هـ/١٩٨٩م، تحقيق محمد عبد السلام أبو النيل، دار الفكر الإسلامي الحديثة",
+      "attributionNote": "النسخة تسميه أيضًا تفسير آدم بن أبي إياس؛ لا تنسب كل رواية إلى مجاهد.",
+      "isnadAuthenticated": false,
+      "aiEligible": true
+    },
+    {
+      "bookId": 27758,
+      "name": "تفسير سفيان الثوري",
+      "authorDeathAH": 161,
+      "policyBasis": "مصادر التفسير في القرون الثلاثة الأولى — ص٣",
+      "metadataURL": "https://quranpedia.net/book/27758",
+      "biographyMetadataURL": "https://quranpedia.net/book/68",
+      "edition": "غير محددة في بيانات هذه النسخة؛ لا ننسب طبعة رقم٦٨ تلقائيًا إلى رقم٢٧٧٥٨",
+      "isnadAuthenticated": false,
+      "aiEligible": false,
+      "aiExclusionReason": "تحديد الطبعة والتحقيق لهذه النسخة غير مكتمل؛ يستبعد من الشرح المولد احترازًا، مع عرض نصه منسوبًا كما ورد."
+    }
+  ],
+  "tafsir_positions": 1834,
+  "tafsir_entries": 2868,
+  "entry_counts": {
+    "269": 2234,
+    "27758": 634
+  },
+  "licenseURL": "https://api.quranpedia.net/dumps/LICENSE.md",
+  "limits": [
+    "لا تصحيح آلي للأسانيد",
+    "لا استخدام معرفة النموذج مصدرًا دينيًا",
+    "كل دليل شرح يخرج من نص تفسير محدد محفوظ",
+    "الشرح ليس فتوى ولا توثيقًا جديدًا للروايات"
+  ],
+  "checks": {
+    "all_quran_text_exact": true,
+    "all_tafsir_text_and_metadata_exact_after_html_removal": true,
+    "all_tafsir_positions_valid": true
+  },
+  "reviewKind": "فحص تقني كامل للنقل والبصمات والمجال، وليس تحقيقًا بشريًا لكل رواية أو اعتمادًا جديدًا من اللجنة"
+}
