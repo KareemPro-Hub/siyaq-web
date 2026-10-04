@@ -1,7 +1,8 @@
 import type {Metadata} from 'next';
+import {pageMetadata} from "@/lib/seo";
 import Link from 'next/link';
 
-export const metadata: Metadata = {title: 'سياسة الخصوصية', description: 'كيف يتعامل موقع سِياق وتطبيق الآيفون مع الاقتباس والصورة والسجلات التقنية.'};
+export const metadata: Metadata = pageMetadata("/privacy");
 
 export default function Privacy() {
   return <main id="main" className="reading-page"><div className="reading-inner">

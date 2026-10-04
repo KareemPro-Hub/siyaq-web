@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import {pageMetadata} from "@/lib/seo";
 import { ArrowUpLeft } from "lucide-react";
 import { provenance, sourcePolicy } from "@/lib/data";
 import Link from "next/link";
 import { DORAR_NOTE } from "@/lib/links";
-export const metadata: Metadata = {title: "المصادر", description: "مصادر النص القرآني والتفسير في سِياق، وطبعاتها ونسخ بياناتها وحدود تغطيتها."};
+export const metadata: Metadata = pageMetadata("/sources");
 export default function Sources() {
   return <main id="main" className="reading-page"><div className="reading-inner"><h1>كل نص، بمرجعه.</h1><p className="reading-lead">فهرس واضح للمواد التي تعتمد عليها المراجعة الحالية. النص القرآني والتفسير محفوظان منفصلين.</p>
     <section className="reading-section"><h2>النص القرآني والسياق</h2><p>مصحف حفص من الموسوعة القرآنية: ١١٤ سورة، و٦٢٣٦ آية، ومنه الآيات المحيطة بالموضع. نسخة البيانات: <bdi>{provenance.version}</bdi>. داخل النتيجة يفتح الرابط الآية نفسها.</p><a className="external-link" href="https://quranpedia.net" target="_blank" rel="noopener noreferrer">الموسوعة القرآنية<ArrowUpLeft size={19} aria-hidden="true" /></a></section>

@@ -40,14 +40,39 @@ test("review keeps its contract for valid, invalid and user-facing errors", asyn
   assert.equal(wrongSelection.status, 400);
 });
 
-test("proxy keeps noindex everywhere and caches static assets only", () => {
-  const at = (path: string) => proxy(new NextRequest("http://localhost" + path)).headers;
-  for (const path of ["/", "/api/review", "/sources"]) {
-    assert.equal(at(path).get("cache-control"), "no-store");
-    assert.equal(at(path).get("x-robots-tag"), "noindex, nofollow, noarchive");
+test("proxy caches static assets only, and allows indexing of approved pages on the main domain only", () => {
+  // الطلب الحقيقي يحمل ترويسة Host؛ نمررها كما يرسلها المتصفح.
+  const req = (url: string) => new NextRequest(url, {headers: {host: new URL(url).host}});
+  const at = (url: string) => proxy(req(url)).headers;
+  const www = "https://www.mysiyaq.com";
+  for (const path of ["/", "/sources", "/methodology", "/support", "/privacy"]) {
+    assert.equal(at(www + path).get("cache-control"), "no-store");
+    assert.equal(at(www + path).get("x-robots-tag"), null, path);
   }
-  assert.match(at("/ocr/core/tesseract-core-simd-lstm.wasm").get("cache-control") ?? "", /^public, max-age=86400/);
-  assert.match(at("/brand/siyaq-logo.png").get("cache-control") ?? "", /^public/);
-  assert.equal(at("/_next/static/chunks/a.js").get("cache-control"), null);
-  assert.equal(at("/_next/static/chunks/a.js").get("x-robots-tag"), "noindex, nofollow, noarchive");
+  // واجهات الخدمة، والروابط ذات المعاملات، والمسارات غير المعتمدة، والأصول: خارج الفهرسة.
+  for (const path of ["/api/review", "/api/explain", "/?q=لا تقربوا الصلاة", "/sources?x=1", "/not-a-page", "/sources/", "/robots.txt", "/sitemap.xml", "/brand/siyaq-share-512.png", "/_next/static/chunks/a.js"]) {
+    assert.equal(at(www + path).get("x-robots-tag"), "noindex, nofollow, noarchive", path);
+  }
+  // رابط Vercel القديم والدومين بلا www والتشغيل المحلي: noindex على كل شيء، دون تحويل.
+  for (const host of ["https://siyaq-theta.vercel.app", "https://mysiyaq.com", "http://localhost:3000"]) {
+    for (const path of ["/", "/sources", "/api/review"]) {
+      const r = proxy(req(host + path));
+      assert.equal(r.headers.get("x-robots-tag"), "noindex, nofollow, noarchive", host + path);
+      assert.equal(r.headers.get("x-middleware-next"), "1");
+      assert.equal(r.headers.get("location"), null);
+    }
+  }
+  assert.equal(at(www + "/api/review").get("cache-control"), "no-store");
+  assert.match(at(www + "/ocr/core/tesseract-core-simd-lstm.wasm").get("cache-control") ?? "", /^public, max-age=86400/);
+  assert.match(at(www + "/brand/siyaq-logo.png").get("cache-control") ?? "", /^public/);
+  assert.equal(at(www + "/_next/static/chunks/a.js").get("cache-control"), null);
+});
+
+test("robots.txt and sitemap.xml list only the approved pages on the main domain", async () => {
+  const {default: robots} = await import("../src/app/robots");
+  const {default: sitemap} = await import("../src/app/sitemap");
+  const r = robots();
+  assert.deepEqual(r.rules, {userAgent: "*", allow: "/", disallow: "/api/"});
+  assert.equal(r.sitemap, "https://www.mysiyaq.com/sitemap.xml");
+  assert.deepEqual(sitemap().map(e => e.url), ["https://www.mysiyaq.com/", "https://www.mysiyaq.com/sources", "https://www.mysiyaq.com/methodology", "https://www.mysiyaq.com/support", "https://www.mysiyaq.com/privacy"]);
 });

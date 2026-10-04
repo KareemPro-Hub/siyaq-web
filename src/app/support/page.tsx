@@ -1,7 +1,8 @@
 import type {Metadata} from 'next';
+import {pageMetadata} from "@/lib/seo";
 import Link from 'next/link';
 
-export const metadata: Metadata = {title: 'الدعم والمساعدة', description: 'التواصل مع سِياق، وإرشادات البحث وقراءة الصور والإبلاغ عن ملاحظة في المحتوى.'};
+export const metadata: Metadata = pageMetadata("/support");
 
 export default function Support() {
   return <main id="main" className="reading-page"><div className="reading-inner">
