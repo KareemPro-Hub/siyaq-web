@@ -27,6 +27,11 @@ export function isIndexable(host: string | null, path: string, search: string): 
   return h === SITE_HOST && PATHS.has(path) && search === "";
 }
 
+// هذان ملفا اكتشاف للمحركات، وليسا صفحتَي محتوى. noindex على خريطة الموقع قد يوقف قراءتها.
+export function isSearchDiscoveryResource(host: string | null, path: string, search: string): boolean {
+  return isIndexable(host, "/", search) && (path === "/robots.txt" || path === "/sitemap.xml");
+}
+
 const SHARE_IMAGE = {url: "/brand/siyaq-share-512.png", width: 512, height: 512, alt: "شعار سِياق"};
 
 /** العنوان والوصف والرابط الأساسي ومعاينة المشاركة لصفحة معتمدة. */

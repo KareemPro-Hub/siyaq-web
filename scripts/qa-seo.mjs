@@ -25,9 +25,13 @@ for (const path of APPROVED) {
   check(`www ${path}: عنوان ووصف ورابط أساسي`, !!meta(r.body, /<title>([^<]+)<\/title>/) && !!meta(r.body, /<meta name="description" content="([^"]+)"/) && canonical === want, `canonical=${canonical}`);
   check(`www ${path}: بلا Gmail أو رابط Vercel`, !/[\w.]+@gmail\.com/i.test(r.body) && !/vercel\.app/.test(r.body));
 }
-for (const path of ["/api/review", "/?q=%D9%84%D8%A7%20%D8%AA%D9%82%D8%B1%D8%A8%D9%88%D8%A7", "/sources?ref=x", "/not-a-page", "/robots.txt", "/sitemap.xml"]) {
+for (const path of ["/api/review", "/?q=%D9%84%D8%A7%20%D8%AA%D9%82%D8%B1%D8%A8%D9%88%D8%A7", "/sources?ref=x", "/not-a-page"]) {
   const r = await get(path, WWW);
   check(`www ${decodeURIComponent(path)}: خارج الفهرسة`, r.headers["x-robots-tag"] === NOINDEX, `status=${r.status}`);
+}
+for (const path of ["/robots.txt", "/sitemap.xml"]) {
+  const r = await get(path, WWW);
+  check(`www ${path}: ملف اكتشاف متاح للمحركات`, r.status === 200 && !r.headers["x-robots-tag"]);
 }
 const api = await get("/api/review", WWW, "POST", JSON.stringify({quote: "لا تقربوا الصلاة"}));
 check("خدمة المراجعة: تعمل وno-store وnoindex", api.status === 200 && api.headers["cache-control"] === "no-store" && api.headers["x-robots-tag"] === NOINDEX);

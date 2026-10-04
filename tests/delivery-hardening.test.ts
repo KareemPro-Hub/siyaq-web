@@ -45,17 +45,17 @@ test("proxy caches static assets only, and allows indexing of approved pages on 
   const req = (url: string) => new NextRequest(url, {headers: {host: new URL(url).host}});
   const at = (url: string) => proxy(req(url)).headers;
   const www = "https://www.mysiyaq.com";
-  for (const path of ["/", "/sources", "/methodology", "/support", "/privacy"]) {
+  for (const path of ["/", "/sources", "/methodology", "/support", "/privacy", "/robots.txt", "/sitemap.xml"]) {
     assert.equal(at(www + path).get("cache-control"), "no-store");
     assert.equal(at(www + path).get("x-robots-tag"), null, path);
   }
   // واجهات الخدمة، والروابط ذات المعاملات، والمسارات غير المعتمدة، والأصول: خارج الفهرسة.
-  for (const path of ["/api/review", "/api/explain", "/?q=لا تقربوا الصلاة", "/sources?x=1", "/not-a-page", "/sources/", "/robots.txt", "/sitemap.xml", "/brand/siyaq-share-512.png", "/_next/static/chunks/a.js"]) {
+  for (const path of ["/api/review", "/api/explain", "/?q=لا تقربوا الصلاة", "/sources?x=1", "/not-a-page", "/sources/", "/robots.txt?x=1", "/sitemap.xml?x=1", "/brand/siyaq-share-512.png", "/_next/static/chunks/a.js"]) {
     assert.equal(at(www + path).get("x-robots-tag"), "noindex, nofollow, noarchive", path);
   }
   // رابط Vercel القديم والدومين بلا www والتشغيل المحلي: noindex على كل شيء، دون تحويل.
   for (const host of ["https://siyaq-theta.vercel.app", "https://mysiyaq.com", "http://localhost:3000"]) {
-    for (const path of ["/", "/sources", "/api/review"]) {
+    for (const path of ["/", "/sources", "/api/review", "/robots.txt", "/sitemap.xml"]) {
       const r = proxy(req(host + path));
       assert.equal(r.headers.get("x-robots-tag"), "noindex, nofollow, noarchive", host + path);
       assert.equal(r.headers.get("x-middleware-next"), "1");
