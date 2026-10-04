@@ -86,3 +86,24 @@ textarea{font-size:21px;line-height:1.85}
 }
 .output-stack>*{min-width:0}
 @media(max-width:360px){nav button,nav a{font-size:14px}.hero h1{font-size:37px}.tabs button{font-size:15px}}
+
+/* درجات أوضح للنصوص والتحكم؛ ألوان الشعار والرسوم تظل بألوان الهوية. */
+:root{--teal-text:#007780;--muted:#4e6860}
+.button:not(:disabled){background:var(--teal-text)}
+.button:hover:not(:disabled){background:#00656d}
+.source-link,.source-cta,.external-link,.reading-cta,.section-label,footer button,nav button:hover,nav a:hover,.image-status{color:var(--teal-text)}
+.tabs button[aria-selected=true]{color:var(--teal-text);border-color:var(--teal-text)}
+.examples,.preview-note,.feedback,.method p,footer,.eyeline,.text-button,.tabs button,.reading-note,.context-row>span,.tafsir-entry .book-detail,.dialog-intro,.dialog-small,.dialog-sources-title,.source-list p,.hero-copy p{color:var(--muted)}
+textarea::placeholder{color:var(--muted)}
+.outline-button,.copy-button,.icon-button,.examples button{color:var(--teal-text)}
+.match-note:not(.possible-note){color:var(--muted)}
+.dialog-header button{color:var(--muted)}
+.search-shell:has(textarea:focus-visible){outline-color:var(--teal-text)}
+.review-stages>span{color:var(--muted)}
+.review-stages .mint svg{color:#48a5ad}
+.review-stages .coral svg{color:#ce9c83}
+.review-stages .purple svg{color:#b58ace}
+footer{flex-wrap:wrap}
+.footer-links{flex-basis:100%;min-width:0;flex-wrap:wrap;gap:8px 28px;font-size:17px;color:var(--teal-text)}
+.footer-links a{font-size:inherit;min-height:44px;display:inline-flex;align-items:center}
+@media(max-width:700px){.footer-links{order:4;gap:5px 22px;font-size:16px}}

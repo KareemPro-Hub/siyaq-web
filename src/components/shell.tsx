@@ -15,5 +15,5 @@ export function Header() {
   return <header className="header wrap"><Brand/><nav aria-label="التنقل الرئيسي"><Link href="/#method">كيف يعمل</Link><Link href="/sources">المصادر</Link><AboutButton/></nav><Link href="/#review" className="button header-cta">راجع اقتباسًا</Link></header>;
 }
 export function Footer() {
-  return <footer className="wrap"><Brand/><p>أُرسل تطبيق الآيفون إلى Apple للمراجعة. لاحقًا: الأحاديث النبوية الموثقة.</p><AboutButton/></footer>;
+  return <footer className="wrap"><Brand/><p>أُرسل تطبيق الآيفون إلى Apple للمراجعة. لاحقًا: الأحاديث النبوية الموثقة.</p><AboutButton/><nav className="footer-links" aria-label="المعلومات والمساعدة"><Link href="/sources">المصادر</Link><Link href="/methodology">كيف يعمل</Link><Link href="/support">الدعم</Link><Link href="/privacy">الخصوصية</Link></nav></footer>;
 }
