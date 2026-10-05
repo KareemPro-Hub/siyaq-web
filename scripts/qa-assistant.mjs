@@ -68,7 +68,7 @@ const overflow = page => page.evaluate(() => document.documentElement.scrollWidt
   ok("زر «تحدث مع سِياق» ظاهر ومسمّى", await launcher(page).isVisible() && (await launcher(page).innerText()).includes(M.launcher));
   ok("في الرئيسية: زر المساعد بجوار «ابدأ المراجعة»، ولا زر عائم", await page.locator(".hero-actions .assistant-inline").isVisible() && await page.locator(".hero-actions a.button").isVisible() && !(await page.locator(".assistant-launcher").count()));
   ok("الاسم مكتوب تحت الروبوت", await page.locator(".assistant-inline").evaluate(b => {const i = b.querySelector(".assistant-avatar").getBoundingClientRect(), l = b.querySelector(".assistant-label").getBoundingClientRect(); return l.top >= i.bottom - 1;}));
-  ok("الروبوت بلا عينين ولا ملامح: دائرة واحدة فقط (رأس الهوائي)", await page.locator(".assistant-inline svg").evaluate(svg => svg.querySelectorAll("circle,ellipse").length === 1 && svg.querySelector("circle").getAttribute("cy") < 8));
+  ok("أيقونة الروبوت المعتمدة بدقة عالية ومحمّلة", await page.locator(".assistant-inline img.assistant-robot").evaluate(img => img.complete && img.naturalWidth >= 96 && /assistant-robot/.test(img.currentSrc) && /\b(256|384)w/.test(img.srcset) && img.alt === ""));
   const headers = await page.request.get(base + "/");
   ok("سياسة الأذونات تسمح بالميكروفون للموقع نفسه فقط", (headers.headers()["permissions-policy"] || "").includes("microphone=(self)"));
   await openPanel(page);
@@ -309,7 +309,7 @@ for (const vp of ["desktop", "mobile", "small"]) {
 }
 {
   const {ctx, page} = await open("mobile", "normal", "/sources");
-  ok("في الصفحات الأخرى: الزر العائم بالروبوت والاسم", await page.locator(".assistant-launcher svg").isVisible() && (await page.locator(".assistant-launcher").innerText()).includes(M.launcher));
+  ok("في الصفحات الأخرى: الزر العائم بالروبوت والاسم", await page.locator(".assistant-launcher img.assistant-robot").isVisible() && (await page.locator(".assistant-launcher").innerText()).includes(M.launcher));
   await page.screenshot({path: `${out}/mobile-4-المصادر-الزر.png`});
   await openPanel(page); await page.waitForTimeout(300);
   await page.screenshot({path: `${out}/mobile-4-المصادر.png`});

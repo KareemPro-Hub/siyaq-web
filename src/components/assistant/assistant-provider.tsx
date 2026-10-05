@@ -86,7 +86,7 @@ export function AssistantProvider({children, label}: {children: React.ReactNode;
   return <Ctx.Provider value={bridge}><LauncherCtx.Provider value={launcherCtx}>
     {children}
     {ASSISTANT_ENABLED && <>
-      {!open && !inline && <button ref={floating} type="button" className="assistant-launcher" data-typing={typing || undefined} onClick={e => openFrom(e.currentTarget)} aria-haspopup="dialog"><span className="assistant-avatar"><AssistantRobot/></span><span className="assistant-label">{label}</span></button>}
+      {!open && !inline && <button ref={floating} type="button" className="assistant-launcher" data-typing={typing || undefined} onClick={e => openFrom(e.currentTarget)} aria-haspopup="dialog"><span className="assistant-avatar"><AssistantRobot size={60}/></span><span className="assistant-label">{label}</span></button>}
       {!open && toast && <p className="assistant-toast" role="status">{toast}</p>}
       {open && <AssistantPanel onClose={close}/>}
     </>}
@@ -100,7 +100,7 @@ export function AssistantInlineButton() {
   useEffect(() => (ASSISTANT_ENABLED && register ? register() : undefined), [register]);
   if (!ASSISTANT_ENABLED || !ctx) return null;
   return <button type="button" className="assistant-inline" onClick={e => ctx.openFrom(e.currentTarget)} aria-haspopup="dialog" aria-expanded={ctx.open}>
-    <span className="assistant-avatar"><AssistantRobot/></span><span className="assistant-label">{ctx.label}</span>
+    <span className="assistant-avatar"><AssistantRobot size={96}/></span><span className="assistant-label">{ctx.label}</span>
   </button>;
 }
 
