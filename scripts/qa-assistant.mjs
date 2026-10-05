@@ -51,7 +51,7 @@ async function open(vp, mode = "normal", path = "/") {
   await page.goto(base + path, {waitUntil: "networkidle"});
   return {ctx, page, errors, reviews};
 }
-const launcher = page => page.locator(".assistant-launcher");
+const launcher = page => page.locator(".assistant-inline:visible, .assistant-launcher:visible").first();
 const panel = page => page.locator(".assistant-panel[role=dialog]");
 const lastAssistant = page => page.locator(".assistant-msg:not(.from-user) > p").last();
 async function openPanel(page) {await launcher(page).click(); await panel(page).waitFor(); await page.waitForTimeout(150);}
@@ -66,6 +66,9 @@ const overflow = page => page.evaluate(() => document.documentElement.scrollWidt
   let s = await a(page);
   ok("لا نطق أو استماع أو ميكروفون عند الدخول", s.speaks.length === 0 && s.recs === 0 && s.mic === 0);
   ok("زر «تحدث مع سِياق» ظاهر ومسمّى", await launcher(page).isVisible() && (await launcher(page).innerText()).includes(M.launcher));
+  ok("في الرئيسية: زر المساعد بجوار «ابدأ المراجعة»، ولا زر عائم", await page.locator(".hero-actions .assistant-inline").isVisible() && await page.locator(".hero-actions a.button").isVisible() && !(await page.locator(".assistant-launcher").count()));
+  ok("الاسم مكتوب تحت الروبوت", await page.locator(".assistant-inline").evaluate(b => {const i = b.querySelector(".assistant-avatar").getBoundingClientRect(), l = b.querySelector(".assistant-label").getBoundingClientRect(); return l.top >= i.bottom - 1;}));
+  ok("الروبوت بلا عينين ولا ملامح: دائرة واحدة فقط (رأس الهوائي)", await page.locator(".assistant-inline svg").evaluate(svg => svg.querySelectorAll("circle,ellipse").length === 1 && svg.querySelector("circle").getAttribute("cy") < 8));
   const headers = await page.request.get(base + "/");
   ok("سياسة الأذونات تسمح بالميكروفون للموقع نفسه فقط", (headers.headers()["permissions-policy"] || "").includes("microphone=(self)"));
   await openPanel(page);
@@ -109,7 +112,7 @@ const overflow = page => page.evaluate(() => document.documentElement.scrollWidt
   const before = (await a(page)).events.filter(e => e === "cancel").length;
   await page.keyboard.press("Escape");
   await page.waitForTimeout(150);
-  ok("Esc يغلق اللوحة ويعيد التركيز إلى الزر", !(await panel(page).count()) && await page.evaluate(() => document.activeElement?.classList.contains("assistant-launcher")));
+  ok("Esc يغلق اللوحة ويعيد التركيز إلى الزر", !(await panel(page).count()) && await page.evaluate(() => document.activeElement?.matches(".assistant-inline, .assistant-launcher")));
   ok("الإغلاق يوقف النطق", (await a(page)).events.filter(e => e === "cancel").length > before);
   s = await a(page);
   ok("لا يُنطق إلا نص معدّ مسبقًا", s.speaks.every(t => prepared.has(t)), s.speaks.filter(t => !prepared.has(t)).join(" | "));
@@ -281,6 +284,7 @@ for (const vp of ["desktop", "mobile", "small"]) {
   const {ctx, page, errors} = await open(vp);
   ok(`${vp}: لا تمرير أفقي واللوحة مغلقة`, (await overflow(page)) <= 0);
   await page.screenshot({path: `${out}/${vp}-1-الرئيسية-والزر.png`});
+  await page.locator(".hero-actions").screenshot({path: `${out}/${vp}-0-زر-المساعد-قريب.png`});
   await openPanel(page);
   await page.waitForTimeout(500);
   ok(`${vp}: لا تمرير أفقي واللوحة مفتوحة`, (await overflow(page)) <= 0);
@@ -295,7 +299,7 @@ for (const vp of ["desktop", "mobile", "small"]) {
   await page.keyboard.press("Escape");
   if (vp !== "desktop") {
     await page.locator("#quote").focus(); await page.waitForTimeout(100);
-    ok(`${vp}: الزر يختفي أثناء الكتابة فلا يغطي المربع أو لوحة المفاتيح`, !(await launcher(page).isVisible()));
+    ok(`${vp}: الزر يختفي أثناء الكتابة فلا يغطي المربع أو لوحة المفاتيح`, !(await page.locator(".assistant-launcher").isVisible()));
     await page.locator("#quote").blur();
   }
   const unnamed = await page.evaluate(() => [...document.querySelectorAll("button,a")].filter(e => e.offsetParent && !(e.getAttribute("aria-label") || e.textContent.trim())).length);
@@ -305,6 +309,8 @@ for (const vp of ["desktop", "mobile", "small"]) {
 }
 {
   const {ctx, page} = await open("mobile", "normal", "/sources");
+  ok("في الصفحات الأخرى: الزر العائم بالروبوت والاسم", await page.locator(".assistant-launcher svg").isVisible() && (await page.locator(".assistant-launcher").innerText()).includes(M.launcher));
+  await page.screenshot({path: `${out}/mobile-4-المصادر-الزر.png`});
   await openPanel(page); await page.waitForTimeout(300);
   await page.screenshot({path: `${out}/mobile-4-المصادر.png`});
   await ctx.close();
