@@ -1,5 +1,5 @@
 "use client";
-import {useState} from "react";
+import {useEffect, useState} from "react";
 import {ArrowUpLeft, BookOpen} from "lucide-react";
 import type {Candidate, ReviewResult} from "@/lib/types";
 import {CopyButton} from "./copy-button";
@@ -22,8 +22,14 @@ function MissingTafsir({verseId, result}: {verseId: string; result: ReviewResult
   const dorar = passage?.url;
   return <div className="unavailable" data-testid="tafsir-missing"><p>{books.length ? `لا يوجد نص تفسير محفوظ لهذه الآية في الكتب المحمّلة حاليًا (${books.join("، ")}). لم نعرض تفسير آية أخرى بدلًا منه.` : "لا يوجد نص تفسير محفوظ لهذه الآية في بيانات الخدمة الحالية، ولم نعرض تفسير آية أخرى بدلًا منه."}</p>{dorar && passage && <a className="source-link" data-testid="dorar-tafsir-passage" href={dorar} target="_blank" rel="noopener noreferrer">{`تفسير سورة ${verse?.surahName ?? arabicNumber(surah)}، الآيات ${arabicNumber(passage.firstAyah)}–${arabicNumber(passage.lastAyah)} في الدرر السنية`}<ArrowUpLeft/></a>}</div>;
 }
-export function ReviewOutput({result, choose, pending, fromImage = false}: {result: ReviewResult; choose:(id:string)=>void; pending:boolean; fromImage?: boolean}) {
+// tabRequest: طلب صريح من مساعد سِياق لفتح تبويب؛ n يتغير مع كل طلب.
+export function ReviewOutput({result, choose, pending, fromImage = false, tabRequest}: {result: ReviewResult; choose:(id:string)=>void; pending:boolean; fromImage?: boolean; tabRequest?: {tab: string; n: number} | null}) {
   const [tab, setTab] = useState("verse");
+  useEffect(() => {
+    if (!tabRequest) return;
+    setTab(tabRequest.tab);
+    requestAnimationFrame(() => {const el = document.getElementById(`${tabRequest.tab}-tab`); el?.focus(); el?.scrollIntoView({block: "center"});});
+  }, [tabRequest]);
   const ocrSuspect = fromImage || (result.search?.ignored ?? []).some(token => !token.startsWith("«"));
   const segmentMatch = result.search?.method === "segments";
   if (!result.selected) return <section className="reading-sheet choices-paper" aria-labelledby="choice-title">

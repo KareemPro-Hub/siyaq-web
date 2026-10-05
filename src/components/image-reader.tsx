@@ -1,11 +1,15 @@
 "use client";
-import {useEffect,useRef,useState} from 'react';
+import {useEffect,useImperativeHandle,useRef,useState} from 'react';
 import {ImagePlus,X} from 'lucide-react';
 import {validateImageFile,validateImageDimensions,validateExtractedText} from '@/lib/image-policy';
 import type {Worker} from 'tesseract.js';
 
-export function ImageReader({onText,busy,onBusyChange}:{onText:(text:string)=>void;busy:boolean;onBusyChange:(busy:boolean)=>void}){
+// controlRef يتيح لمساعد سِياق إظهار القارئ وفتح منتقي الملفات (من نقرة المستخدم فقط).
+export type ImageReaderControl={show:()=>boolean;open:()=>boolean;busy:()=>boolean};
+export function ImageReader({onText,busy,onBusyChange,controlRef}:{onText:(text:string)=>void;busy:boolean;onBusyChange:(busy:boolean)=>void;controlRef?:React.Ref<ImageReaderControl>}){
  const picker=useRef<HTMLInputElement>(null);
+ const root=useRef<HTMLDivElement>(null);
+ const pickButton=useRef<HTMLButtonElement>(null);
  const worker=useRef<Worker|null>(null);
  const run=useRef(0);
  const imageURL=useRef<string|null>(null);
@@ -14,6 +18,11 @@ export function ImageReader({onText,busy,onBusyChange}:{onText:(text:string)=>vo
  const [error,setError]=useState('');
  const [preview,setPreview]=useState<string|null>(null);
  useEffect(()=>onBusyChange(pending),[pending,onBusyChange]);
+ useImperativeHandle(controlRef,()=>({
+  show:()=>{if(!root.current)return false;root.current.scrollIntoView({block:'center'});pickButton.current?.focus({preventScroll:true});return true;},
+  open:()=>{if(!picker.current||busy||pending)return false;picker.current.click();return true;},
+  busy:()=>busy||pending,
+ }),[busy,pending]);
  function releaseImage(){if(imageURL.current)URL.revokeObjectURL(imageURL.current);imageURL.current=null;}
  function cancel(){run.current++;const active=worker.current;worker.current=null;void active?.terminate();releaseImage();setPreview(null);setPending(false);setStatus('أُلغي استخراج النص.');}
  useEffect(()=>()=>{run.current++;void worker.current?.terminate();if(imageURL.current)URL.revokeObjectURL(imageURL.current);},[]);
@@ -55,9 +64,9 @@ export function ImageReader({onText,busy,onBusyChange}:{onText:(text:string)=>vo
   }catch(e){if(run.current===id){setError(e instanceof Error&&/^(اختر|أبعاد|تعذرت|لم نقرأ|الصورة)/.test(e.message)?e.message:stage==='load'?'تعذر تحميل قارئ الصور، وقد يكون الاتصال ضعيفًا. أعد المحاولة أو اكتب الاقتباس يدويًا.':stage==='image'?'تعذر فتح هذه الصورة. اختر صورة PNG أو JPEG أو WebP سليمة، أو اكتب الاقتباس.':'تعذرت قراءة الصورة. جرّب صورة أوضح أو اكتب الاقتباس.');setStatus('');}}
   finally{clearTimeout(timer);if(active){if(worker.current===active)worker.current=null;await active.terminate().catch(()=>{});}if(run.current===id)setPending(false);}
  }
- return <div className="image-reader">
+ return <div className="image-reader" ref={root} id="image-reader">
   <input ref={picker} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={event=>{const file=event.currentTarget.files?.[0];event.currentTarget.value='';if(file)void read(file);}}/>
-  <div className="image-reader-actions"><button type="button" className="outline-button" disabled={busy||pending} onClick={()=>picker.current?.click()}><ImagePlus size={18} aria-hidden="true"/>اقرأ من صورة</button>{pending&&<button type="button" className="text-button" onClick={cancel}><X size={17} aria-hidden="true"/>إلغاء القراءة</button>}</div>
+  <div className="image-reader-actions"><button ref={pickButton} type="button" className="outline-button" disabled={busy||pending} onClick={()=>picker.current?.click()}><ImagePlus size={18} aria-hidden="true"/>اقرأ من صورة</button>{pending&&<button type="button" className="text-button" onClick={cancel}><X size={17} aria-hidden="true"/>إلغاء القراءة</button>}</div>
   <p className="image-hint">الصورة لا تُرفع. اختر لقطة للاقتباس فقط؛ القراءة قد تفقد تشكيلًا أو حروفًا، فراجع النص قبل البحث.</p>
   {preview&&<div className="image-preview"><img src={preview} alt="الصورة المختارة لاستخراج الاقتباس"/><button type="button" className="text-button" onClick={cancel} aria-label="إزالة الصورة">إزالة الصورة</button></div>}
   <p role="status" aria-live="polite" className="image-status">{status}</p>{error&&<p role="alert" className="form-error">{error}</p>}
