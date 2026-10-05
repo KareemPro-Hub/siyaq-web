@@ -16,13 +16,14 @@ const results = []; const ok = (name, pass, detail = "") => {results.push({name,
 
 // محاكاة الصوت. mode: normal | denied | network | none (لا تعرف) | noaudio (فشل تشغيل الملفات)
 function mockSpeech(mode) {
-  const log = window.__a = {events: [], speaks: [], recs: 0, mic: 0, synth: 0};
+  const log = window.__a = {events: [], speaks: [], recs: 0, mic: 0, synth: 0, overlap: 0};
   let speakingNow = false, current = null;
   // المساعد لا يستخدم صوت الجهاز إطلاقًا؛ أي استدعاء له يُسجَّل خطأً.
   if (window.speechSynthesis) window.speechSynthesis.speak = () => {log.synth++;};
   window.Audio = class {
     constructor() {this.src = ""; this.preload = ""; this.currentTime = 0; this.onended = null; this.onerror = null;}
     play() {
+      if (current && current !== this) log.overlap++; // تشغيل رد جديد قبل إيقاف السابق
       log.speaks.push(this.src); log.events.push("speak");
       if (mode === "noaudio") return Promise.reject(new Error("NotAllowedError"));
       speakingNow = true; current = this;
@@ -110,6 +111,12 @@ const overflow = page => page.evaluate(() => document.documentElement.scrollWidt
   ok("النفي «لا تفتح المصادر»: لا انتقال", (await lastAssistant(page).innerText()) === M.negated && page.url() === urlBefore);
   await ask(page, "هل نتائج التشابه مؤكدة ؟");
   ok("صيغة مكتوبة لسؤال قائم", (await lastAssistant(page).innerText()) === I.similarity.answer);
+  // رد جديد أثناء تشغيل رد سابق: يتوقف السابق أولًا، ولا يتداخل صوتان.
+  const before2 = (await a(page)).events.length;
+  await ask(page, "هل الخدمة مجانية ؟"); await ask(page, "ما مصادر التفسير ؟");
+  await page.waitForTimeout(100);
+  const seq = (await a(page)).events.slice(before2).filter(e => e === "speak" || e === "cancel");
+  ok("رد جديد يوقف الصوت السابق قبل أن يبدأ", seq.join(",").startsWith("cancel,speak,cancel,speak") || seq.join(",").startsWith("speak,cancel,speak"), seq.join(","));
   // التبويب دون نتيجة
   await ask(page, "افتح التفسير");
   ok("طلب التفسير دون نتيجة يشرح الخطوة أولًا", (await lastAssistant(page).innerText()) === M.needResult);
@@ -120,6 +127,7 @@ const overflow = page => page.evaluate(() => document.documentElement.scrollWidt
   await page.waitForTimeout(150);
   ok("Esc يغلق اللوحة ويعيد التركيز إلى الزر", !(await panel(page).count()) && await page.evaluate(() => document.activeElement?.matches(".assistant-inline, .assistant-launcher")));
   ok("الإغلاق يوقف النطق", (await a(page)).events.filter(e => e === "cancel").length > before);
+  ok("لا تداخل بين صوتين في أي لحظة", (await a(page)).overlap === 0, String((await a(page)).overlap));
   s = await a(page);
   ok("لا يُنطق إلا نص معدّ مسبقًا", s.speaks.every(t => prepared.has(t)), s.speaks.filter(t => !prepared.has(t)).join(" | "));
   ok("لا أخطاء JavaScript (١)", errors.length === 0, errors.join(" | "));
@@ -294,6 +302,13 @@ for (const vp of ["desktop", "mobile", "small"]) {
   ok(`${vp}: لا تمرير أفقي واللوحة مغلقة`, (await overflow(page)) <= 0);
   await page.screenshot({path: `${out}/${vp}-1-الرئيسية-والزر.png`});
   await page.locator(".hero-actions").screenshot({path: `${out}/${vp}-0-زر-المساعد-قريب.png`});
+  const hero = await page.evaluate(() => {
+    const r = e => e.getBoundingClientRect(), btn = document.querySelector(".hero-actions .assistant-inline"), cta = document.querySelector(".hero-actions a.button");
+    const b = r(btn), c = r(cta), img = btn.querySelector("img"), lab = btn.querySelector(".assistant-label");
+    const apart = b.right <= c.left || b.left >= c.right || b.bottom <= c.top || b.top >= c.bottom;
+    return {w: b.width, h: b.height, apart, img: img.complete && img.naturalWidth > 0 && r(img).width >= 64, label: getComputedStyle(lab).fontSize, inView: b.left >= 0 && b.right <= innerWidth};
+  });
+  ok(`${vp}: الروبوت واضح ومنفصل عن «ابدأ المراجعة» وهدف لمسه كبير`, hero.w >= 64 && hero.h >= 64 && hero.apart && hero.img && parseFloat(hero.label) >= 15 && hero.inView, JSON.stringify(hero));
   await openPanel(page);
   await page.waitForTimeout(500);
   ok(`${vp}: لا تمرير أفقي واللوحة مفتوحة`, (await overflow(page)) <= 0);

@@ -1,0 +1,51 @@
+// فحص تشغيل حقيقي لملفات المساعد في Chromium (بلا محاكاة للصوت): يتأكد أن رد جديد يوقف السابق،
+// وأن الإغلاق وEsc وزر السماعة توقف الصوت، وأن الملفات تُحمَّل من الموقع نفسه فقط.
+// يعمل بعد `npm run build && npm run start`. QA_URL افتراضيًا 127.0.0.1:4197.
+import {chromium} from "playwright-core";
+import {readFileSync} from "node:fs";
+const M = JSON.parse(readFileSync(new URL("../src/content/assistant-responses.json", import.meta.url), "utf8")).messages;
+const base = process.env.QA_URL || "http://127.0.0.1:4197";
+const browser = await chromium.launch({executablePath: process.env.QA_BROWSER || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", headless: true, args: ["--autoplay-policy=no-user-gesture-required"]});
+const results = []; const ok = (name, pass, detail = "") => {results.push({name, pass: !!pass}); console.log(pass ? "PASS" : "FAIL", name, detail);};
+const ctx = await browser.newContext({viewport: {width: 390, height: 844}, isMobile: true, hasTouch: true});
+await ctx.addInitScript(() => {
+  const w = window.__p = {max: 0, starts: [], hosts: new Set()};
+  const playing = new Set();
+  const upd = () => {w.now = playing.size; w.max = Math.max(w.max, playing.size);};
+  const play = HTMLMediaElement.prototype.play, pause = HTMLMediaElement.prototype.pause;
+  HTMLMediaElement.prototype.play = function () {const r = play.call(this); w.starts.push(new URL(this.src).pathname); w.hosts.add(new URL(this.src).host); this.addEventListener("playing", () => {playing.add(this); upd();}, {once: true}); this.addEventListener("ended", () => {playing.delete(this); upd();}, {once: true}); return r;};
+  HTMLMediaElement.prototype.pause = function () {playing.delete(this); upd(); return pause.call(this);};
+  w.playing = () => [...playing].filter(a => !a.paused).length;
+});
+const page = await ctx.newPage();
+const reqs = []; page.on("request", r => {if (/\.(mp3|wav|ogg)$/.test(new URL(r.url()).pathname)) reqs.push(r.url());});
+await page.goto(base + "/", {waitUntil: "networkidle"});
+const p = () => page.evaluate(() => ({now: window.__p.playing(), max: window.__p.max, starts: window.__p.starts, hosts: [...window.__p.hosts]}));
+ok("لا صوت قبل فتح المساعد", reqs.length === 0 && (await p()).starts.length === 0);
+await page.locator(".assistant-inline").tap();
+await page.locator(".assistant-panel[role=dialog]").waitFor(); await page.waitForTimeout(1200);
+let s = await p();
+ok("الترحيب يُشغَّل من ملف الموقع", s.now === 1 && s.starts[0] === "/assistant-audio/msg-welcome.mp3", JSON.stringify(s));
+const ask = async t => {await page.locator("#assistant-input").fill(t); await page.locator("#assistant-input").press("Enter");};
+await ask("ما سِياق ؟"); await page.waitForTimeout(800);
+s = await p();
+ok("رد جديد يوقف الترحيب: صوت واحد فقط", s.now === 1 && s.max === 1 && s.starts.at(-1) === "/assistant-audio/intent-what_is.mp3", JSON.stringify(s));
+await ask("هل الخدمة مجانية ؟"); await page.waitForTimeout(800);
+s = await p();
+ok("رد ثالث سريع: ما زال صوت واحد", s.now === 1 && s.max === 1 && s.starts.at(-1) === "/assistant-audio/intent-free.mp3", JSON.stringify(s));
+await page.getByRole("button", {name: M.speechToggle}).tap(); await page.waitForTimeout(300);
+ok("زر السماعة يوقف الصوت فورًا", (await p()).now === 0);
+await page.getByRole("button", {name: M.speechToggle}).tap();
+await ask("ما مصادر التفسير ؟"); await page.waitForTimeout(800);
+ok("بعد إعادة تشغيل النطق يعمل الرد التالي", (await p()).now === 1);
+await page.getByRole("button", {name: M.close}).tap(); await page.waitForTimeout(300);
+ok("الإغلاق يوقف الصوت فورًا", (await p()).now === 0 && !(await page.locator(".assistant-panel[role=dialog]").count()));
+await page.locator(".assistant-inline").tap(); await page.locator(".assistant-panel[role=dialog]").waitFor(); await page.waitForTimeout(800);
+await page.keyboard.press("Escape"); await page.waitForTimeout(300);
+ok("Esc يوقف الصوت", (await p()).now === 0);
+s = await p();
+ok("كل الملفات من نطاق الموقع نفسه", s.hosts.length === 1 && s.hosts[0] === new URL(base).host && s.max === 1, JSON.stringify(s.hosts));
+await browser.close();
+const failed = results.filter(r => !r.pass).length;
+console.log(`summary ${failed} failed of ${results.length}`);
+process.exit(failed ? 1 : 0);
