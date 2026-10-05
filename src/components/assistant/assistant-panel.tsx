@@ -7,7 +7,8 @@ import {usePathname, useRouter} from "next/navigation";
 import {Mic, Send, Square, Volume2, VolumeX, X} from "lucide-react";
 import {useAssistantBridge, type PendingAction} from "./assistant-provider";
 import {matchRequest, messages as M, starters, type AllowedPath, type AssistantAction, type AssistantTab, type Intent} from "@/lib/assistant/intents";
-import {listenOnce, loadVoices, pickArabicVoice, recognitionCtor, speak, type Listening, type RecognitionErrorKind, type Speaking} from "@/lib/assistant/speech";
+import {listenOnce, playClip, recognitionCtor, type Listening, type RecognitionErrorKind, type Speaking} from "@/lib/assistant/speech";
+import {clipFor} from "@/lib/assistant/audio";
 
 type Entry = {id: number; from: "assistant" | "user"; text: string; heard?: boolean; actions?: AssistantAction[]; options?: Intent[]; heardText?: string; replace?: {text: string; review: boolean}};
 type Status = "idle" | "listening" | "speaking";
@@ -22,7 +23,6 @@ export function AssistantPanel({onClose}: {onClose: () => void}) {
   const [log, setLog] = useState<Entry[]>([]);
   const [status, setStatus] = useState<Status>("idle");
   const [interim, setInterim] = useState("");
-  const [voice, setVoice] = useState<SpeechSynthesisVoice | null | undefined>(undefined);
   const [speechOn, setSpeechOn] = useState(true);
   const [micBlocked, setMicBlocked] = useState(false);
   const [dictating, setDictating] = useState(false);
@@ -41,7 +41,8 @@ export function AssistantPanel({onClose}: {onClose: () => void}) {
   const title = useRef<HTMLHeadingElement>(null);
   const logEnd = useRef<HTMLDivElement>(null);
   const speechOnRef = useRef(speechOn); speechOnRef.current = speechOn;
-  const voiceRef = useRef(voice); voiceRef.current = voice;
+  // إذا فشل تشغيل ملف صوتي مرة، نُعلم الزائر مرة واحدة وتبقى الردود مكتوبة.
+  const audioFailedOnce = useRef(false);
 
   const stopAudio = useCallback(() => {
     listening.current?.abort(); listening.current = null;
@@ -49,15 +50,21 @@ export function AssistantPanel({onClose}: {onClose: () => void}) {
     setInterim(""); setStatus("idle");
   }, []);
 
-  /** إضافة رد معدّ إلى المحادثة، ونطقه إذا كان النطق مفعّلًا وصوت عربي متاحًا. لا يُنطق نص المستخدم أبدًا. */
+  /** تشغيل التسجيل المعدّ لرد مكتوب، إن كان النطق مفعّلًا وللرد تسجيل. لا يُنطق نص المستخدم أو الآيات أبدًا،
+   * ولا يُولَّد صوت أثناء الزيارة: الملفات مسجّلة مسبقًا ومستضافة مع الموقع. */
   const speakText = useCallback((text: string) => {
-    const v = voiceRef.current;
-    if (!speechOnRef.current || !v) return;
+    if (!speechOnRef.current) return;
+    const url = clipFor(text);
+    if (!url) return;
     listening.current?.abort(); listening.current = null; // لا استماع أثناء النطق، حتى لا يسمع المساعد نفسه.
     speaking.current?.cancel();
-    const s = speak(text, v);
+    const s = playClip(url);
     speaking.current = s; setStatus("speaking");
-    void s.done.then(() => {if (alive.current && speaking.current === s) {speaking.current = null; setStatus("idle");}});
+    void s.done.then(({ok}) => {
+      if (!alive.current || speaking.current !== s) return;
+      speaking.current = null; setStatus("idle");
+      if (!ok && !audioFailedOnce.current) {audioFailedOnce.current = true; setLog(l => [...l, {id: nextId.current++, from: "assistant" as const, text: M.audioFailed}].slice(-MAX_ENTRIES));}
+    });
   }, []);
   const say = useCallback((text: string, extra: Omit<Entry, "id" | "from" | "text"> = {}, spoken?: string) => {
     if (!alive.current) return;
@@ -66,20 +73,14 @@ export function AssistantPanel({onClose}: {onClose: () => void}) {
   }, [speakText]);
   const addUser = useCallback((text: string, heard: boolean) => setLog(l => [...l, {id: nextId.current++, from: "user" as const, text, heard}].slice(-MAX_ENTRIES)), []);
 
-  // الترحيب بعد ضغط المستخدم، ثم تحميل أصوات الجهاز. لا ميكروفون تلقائي.
+  // الترحيب بعد ضغط المستخدم. لا ميكروفون تلقائي.
   useEffect(() => {
     alive.current = true;
     title.current?.focus();
-    let cancelled = false;
     setLog([{id: nextId.current++, from: "assistant", text: M.welcome}]);
-    void loadVoices().then(voices => {
-      if (cancelled) return;
-      const v = typeof window !== "undefined" && "speechSynthesis" in window ? pickArabicVoice(voices) : null;
-      setVoice(v); voiceRef.current = v;
-      if (v) speakText(M.welcome); else say(M.noArabicVoice);
-    });
-    return () => {cancelled = true; alive.current = false; listening.current?.abort(); speaking.current?.cancel();};
-  }, [say, speakText]);
+    speakText(M.welcome);
+    return () => {alive.current = false; listening.current?.abort(); speaking.current?.cancel();};
+  }, [speakText]);
   // إيقاف الصوت والميكروفون عند التنقل أو إخفاء الصفحة.
   useEffect(() => {
     if (pathname === lastPath.current) return;
@@ -210,7 +211,7 @@ export function AssistantPanel({onClose}: {onClose: () => void}) {
     <header className="assistant-head">
       <h2 id="assistant-title" ref={title} tabIndex={-1}>{M.title}</h2>
       <div className="assistant-head-actions">
-        <button type="button" className="assistant-icon" onClick={toggleSpeech} aria-pressed={speechOn && !!voice} disabled={!voice} aria-label={M.speechToggle} title={voice ? M.speechToggle : M.noArabicVoice}>{speechOn && voice ? <Volume2 aria-hidden="true"/> : <VolumeX aria-hidden="true"/>}</button>
+        <button type="button" className="assistant-icon" onClick={toggleSpeech} aria-pressed={speechOn} aria-label={M.speechToggle} title={M.speechToggle}>{speechOn ? <Volume2 aria-hidden="true"/> : <VolumeX aria-hidden="true"/>}</button>
         <button type="button" className="assistant-icon" onClick={onClose} aria-label={M.close}><X aria-hidden="true"/></button>
       </div>
     </header>

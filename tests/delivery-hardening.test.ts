@@ -65,6 +65,7 @@ test("proxy caches static assets only, and allows indexing of approved pages on 
   assert.equal(at(www + "/api/review").get("cache-control"), "no-store");
   assert.match(at(www + "/ocr/core/tesseract-core-simd-lstm.wasm").get("cache-control") ?? "", /^public, max-age=86400/);
   assert.match(at(www + "/brand/siyaq-logo.png").get("cache-control") ?? "", /^public/);
+  assert.match(at(www + "/assistant-audio/msg-welcome.mp3").get("cache-control") ?? "", /^public/);
   assert.equal(at(www + "/_next/static/chunks/a.js").get("cache-control"), null);
 });
 

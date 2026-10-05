@@ -67,38 +67,19 @@ export function listenOnce(onInterim: (text: string) => void, {timeoutMs = 12000
   return {result, stop: () => {try {rec.stop();} catch {finish();}}, abort: () => {error = "aborted"; finalText = ""; interim = ""; try {rec.abort();} catch {} finish();}};
 }
 
-type VoiceLike = {lang: string; name: string; localService?: boolean; default?: boolean};
-/** أفضل صوت عربي متاح على الجهاز، أو null. لا نستخدم صوتًا غير عربي لنطق العربية. */
-export function pickArabicVoice<V extends VoiceLike>(voices: readonly V[]): V | null {
-  const arabic = voices.filter(v => /^ar(-|_|$)/i.test(v.lang));
-  if (!arabic.length) return null;
-  const rank = (v: V) => (/^ar[-_]SA$/i.test(v.lang) ? 4 : /^ar$/i.test(v.lang) ? 3 : 2) + (v.localService ? 1 : 0);
-  return [...arabic].sort((a, b) => rank(b) - rank(a))[0];
-}
-
-/** أصوات الجهاز قد تُحمَّل متأخرة؛ ننتظر حتى ثانية ونصف كحد أقصى. */
-export function loadVoices(synth: SpeechSynthesis | undefined = typeof window === "undefined" ? undefined : window.speechSynthesis): Promise<SpeechSynthesisVoice[]> {
-  if (!synth) return Promise.resolve([]);
-  const now = synth.getVoices();
-  if (now.length) return Promise.resolve(now);
-  return new Promise(resolve => {
-    const done = () => {synth.removeEventListener("voiceschanged", done); clearTimeout(t); resolve(synth.getVoices());};
-    const t = setTimeout(done, 1500);
-    synth.addEventListener("voiceschanged", done);
-  });
-}
-
-export type Speaking = {done: Promise<void>; cancel(): void};
-/** نطق نص معدّ بصوت عربي، بسرعة معتدلة. ينتهي بانتهاء النطق أو الإلغاء أو مهلة أمان (بعض المتصفحات لا تُطلق end). */
-export function speak(text: string, voice: SpeechSynthesisVoice, synth: SpeechSynthesis = window.speechSynthesis): Speaking {
-  synth.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  u.voice = voice; u.lang = voice.lang; u.rate = 0.9; u.pitch = 1; u.volume = 1;
-  let finish!: () => void;
-  const done = new Promise<void>(r => {finish = r;});
-  const safety = setTimeout(() => finish(), Math.min(30000, 4000 + text.length * 120));
-  const end = () => {clearTimeout(safety); finish();};
-  u.onend = end; u.onerror = end;
-  synth.speak(u);
-  return {done, cancel: () => {u.onend = u.onerror = null; synth.cancel(); end();}};
+export type Speaking = {done: Promise<{ok: boolean}>; cancel(): void};
+type AudioLike = {src: string; preload: string; currentTime: number; play(): Promise<void> | void; pause(): void; onended: (() => void) | null; onerror: (() => void) | null};
+/** تشغيل ملف صوتي مسجّل مسبقًا ومستضاف مع الموقع. لا توليد صوت ولا اتصال بخدمة أثناء الزيارة.
+ * ينتهي بانتهاء الملف أو الإلغاء أو الفشل؛ ok=false عند الفشل، فتبقى الردود مكتوبة فقط. */
+export function playClip(url: string, make: () => AudioLike = () => new Audio() as unknown as AudioLike): Speaking {
+  const audio = make();
+  let finish!: (r: {ok: boolean}) => void;
+  const done = new Promise<{ok: boolean}>(r => {finish = r;});
+  let settled = false;
+  const end = (ok: boolean) => {if (settled) return; settled = true; audio.onended = audio.onerror = null; finish({ok});};
+  audio.onended = () => end(true);
+  audio.onerror = () => end(false);
+  audio.preload = "auto"; audio.src = url;
+  try {Promise.resolve(audio.play()).catch(() => end(false));} catch {end(false);}
+  return {done, cancel: () => {try {audio.pause(); audio.currentTime = 0;} catch {} end(true);}};
 }

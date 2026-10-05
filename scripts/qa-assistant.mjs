@@ -1,5 +1,5 @@
 // فحص متصفح محلي لمساعد سِياق بعد `npm run build && npm run start`. QA_URL افتراضيًا 127.0.0.1:4197.
-// مهم: الصوت هنا محاكاة (mock) لـ SpeechRecognition وspeechSynthesis داخل الصفحة. يختبر المنطق والواجهة والإجراءات،
+// مهم: الاستماع هنا محاكاة (mock) لـ SpeechRecognition، وتشغيل الملفات الصوتية محاكاة لـ Audio داخل الصفحة. يختبر المنطق والواجهة والإجراءات،
 // ولا يُعد تجربة تعرف صوتي حقيقية أو اختبار جودة صوت.
 import {chromium} from "playwright-core";
 import {mkdirSync, readFileSync, writeFileSync} from "node:fs";
@@ -7,24 +7,30 @@ const base = process.env.QA_URL || "http://127.0.0.1:4197", out = process.env.QA
 mkdirSync(out, {recursive: true});
 const content = JSON.parse(readFileSync(new URL("../src/content/assistant-responses.json", import.meta.url), "utf8"));
 const M = content.messages, I = Object.fromEntries(content.intents.map(i => [i.id, i]));
-const prepared = new Set([...Object.values(M), ...content.intents.flatMap(i => [i.answer, i.spoken].filter(Boolean))]);
+const audio = JSON.parse(readFileSync(new URL("../src/content/assistant-audio.json", import.meta.url), "utf8"));
+// ما يُسمح بتشغيله: ملفات الردود المسجّلة فقط.
+const prepared = new Set(Object.values(audio).map(e => `/assistant-audio/${e.file}`));
 const launchBrowser = () => chromium.launch({executablePath: process.env.QA_BROWSER || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", headless: true});
 let browser = await launchBrowser();
 const results = []; const ok = (name, pass, detail = "") => {results.push({name, pass: !!pass, detail}); console.log(pass ? "PASS" : "FAIL", name, detail);};
 
-// محاكاة الصوت. mode: normal | denied | network | none (لا تعرف) | novoice (لا صوت عربي)
+// محاكاة الصوت. mode: normal | denied | network | none (لا تعرف) | noaudio (فشل تشغيل الملفات)
 function mockSpeech(mode) {
-  const log = window.__a = {events: [], speaks: [], recs: 0, mic: 0};
+  const log = window.__a = {events: [], speaks: [], recs: 0, mic: 0, synth: 0};
   let speakingNow = false, current = null;
-  if (mode !== "nosynth") {
-    window.SpeechSynthesisUtterance = class {constructor(t) {this.text = t; this.onend = null; this.onerror = null;}};
-    const voices = mode === "novoice" ? [{lang: "en-US", name: "Mock English", localService: true}] : [{lang: "en-US", name: "Mock English"}, {lang: "ar-SA", name: "Mock Arabic", localService: true}];
-    Object.defineProperty(window, "speechSynthesis", {configurable: true, value: {
-      getVoices: () => voices, addEventListener() {}, removeEventListener() {},
-      speak(u) {log.speaks.push(u.text); log.events.push("speak"); speakingNow = true; current = u; setTimeout(() => {if (current === u) {speakingNow = false; current = null; u.onend?.();}}, 400);},
-      cancel() {log.events.push("cancel"); speakingNow = false; current = null;},
-    }});
-  }
+  // المساعد لا يستخدم صوت الجهاز إطلاقًا؛ أي استدعاء له يُسجَّل خطأً.
+  if (window.speechSynthesis) window.speechSynthesis.speak = () => {log.synth++;};
+  window.Audio = class {
+    constructor() {this.src = ""; this.preload = ""; this.currentTime = 0; this.onended = null; this.onerror = null;}
+    play() {
+      log.speaks.push(this.src); log.events.push("speak");
+      if (mode === "noaudio") return Promise.reject(new Error("NotAllowedError"));
+      speakingNow = true; current = this;
+      setTimeout(() => {if (current === this) {speakingNow = false; current = null; this.onended?.();}}, 400);
+      return Promise.resolve();
+    }
+    pause() {if (current === this) {log.events.push("cancel"); speakingNow = false; current = null;}}
+  };
   if (mode === "none") {delete window.webkitSpeechRecognition; delete window.SpeechRecognition; Object.defineProperty(window, "webkitSpeechRecognition", {value: undefined}); Object.defineProperty(window, "SpeechRecognition", {value: undefined}); return;}
   class Rec {
     constructor() {this.lang = ""; this.continuous = true; this.interimResults = false; window.__rec = this;}
@@ -76,7 +82,7 @@ const overflow = page => page.evaluate(() => document.documentElement.scrollWidt
   ok("التركيز ينتقل إلى اللوحة عند الفتح", await page.evaluate(() => document.activeElement?.id === "assistant-title"));
   await page.waitForTimeout(200);
   s = await a(page);
-  ok("الترحيب مكتوب ومنطوق بالفصحى", (await page.locator(".assistant-msg p").first().innerText()) === M.welcome && s.speaks[0] === M.welcome, JSON.stringify(s.speaks));
+  ok("الترحيب مكتوب ومنطوق بالفصحى", (await page.locator(".assistant-msg p").first().innerText()) === M.welcome && s.speaks[0] === "/assistant-audio/msg-welcome.mp3" && s.synth === 0, JSON.stringify(s.speaks));
   ok("لا استماع بعد الترحيب دون ضغط «تحدّث»", s.recs === 0 && s.mic === 0);
   ok("توضيح معالجة الصوت قبل الاستخدام", (await panel(page).innerText()).includes(M.voicePrivacy));
   // الأسئلة العشرة من الأزرار
@@ -269,12 +275,15 @@ for (const [mode, name, msg] of [["denied", "رفض إذن الميكروفون"
   await ctx.close();
 }
 {
-  const {ctx, page, errors} = await open("desktop", "novoice");
+  const {ctx, page, errors} = await open("desktop", "noaudio");
   await openPanel(page);
   await page.waitForTimeout(250);
+  await ask(page, "ما سِياق ؟");
+  await page.waitForTimeout(250);
   const s = await a(page);
-  ok("لا صوت عربي: لا نطق بصوت غير عربي، والردود مكتوبة", s.speaks.length === 0 && (await panel(page).innerText()).includes(M.noArabicVoice) && await panel(page).getByRole("button", {name: M.speechToggle}).isDisabled());
-  ok("لا أخطاء JavaScript (لا صوت عربي)", errors.length === 0, errors.join(" | "));
+  const text = await panel(page).innerText();
+  ok("فشل تشغيل الصوت: الردود تبقى مكتوبة، مع تنبيه واحد", text.includes(M.welcome) && text.includes(I.what_is.answer) && text.split(M.audioFailed).length === 2 && s.synth === 0);
+  ok("لا أخطاء JavaScript (فشل الصوت)", errors.length === 0, errors.join(" | "));
   await ctx.close();
 }
 // ٤. العروض والهاتف والصور

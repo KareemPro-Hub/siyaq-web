@@ -2,7 +2,9 @@ import {test} from "node:test";
 import assert from "node:assert/strict";
 import content from "../src/content/assistant-responses.json";
 import {ALLOWED_PATHS, intent, intents, matchRequest, messages, normalize, starters} from "../src/lib/assistant/intents";
-import {listenOnce, pickArabicVoice, recognitionError, recognitionLang, type RecognitionLike} from "../src/lib/assistant/speech";
+import {existsSync, readFileSync, statSync} from "node:fs";
+import {listenOnce, playClip, recognitionError, recognitionLang, type RecognitionLike} from "../src/lib/assistant/speech";
+import {AUDIO_BASE, audioEntries, clipFor, displayTextFor} from "../src/lib/assistant/audio";
 
 const id = (q: string) => {const m = matchRequest(q); return m.kind === "intent" ? m.intent.id : m.kind;};
 
@@ -58,7 +60,7 @@ test("normalisation ignores diacritics and spelling variants", () => {
   assert.equal(normalize("سِيَاقٌ ؟ أإآ ى ة"), "سياق ااا ي ه");
 });
 
-test("speech helpers: errors, language and Arabic-only voices", () => {
+test("speech helpers: errors and recognition language", () => {
   assert.equal(recognitionError("not-allowed"), "denied");
   assert.equal(recognitionError("service-not-allowed"), "denied");
   assert.equal(recognitionError("no-speech"), "no-speech");
@@ -68,8 +70,6 @@ test("speech helpers: errors, language and Arabic-only voices", () => {
   assert.equal(recognitionError("something-new"), "failed");
   assert.equal(recognitionLang(["ar-EG", "en-US"]), "ar-EG");
   assert.equal(recognitionLang(["en-US"]), "ar-SA");
-  assert.equal(pickArabicVoice([{lang: "en-US", name: "Samantha"}]), null);
-  assert.equal(pickArabicVoice([{lang: "en-US", name: "A"}, {lang: "ar-EG", name: "B"}, {lang: "ar-SA", name: "Majed"}])?.name, "Majed");
 });
 
 // محاكاة SpeechRecognition (mock): تختبر منطق الاستماع، وليست تجربة تعرف صوتي حقيقية.
@@ -132,4 +132,47 @@ test("negation never triggers an action, and compound requests are offered as ch
 test("every intent belongs to a family and negation phrases do not collide with the starter questions", () => {
   for (const i of intents) assert.ok(i.family, i.id);
   for (const s of starters) assert.notEqual(matchRequest(s.question).kind, "negated", s.question);
+});
+
+// كل رد قد يُنطق في اللوحة له تسجيل مستضاف مع الموقع، والنص المنطوق مشكول ولا يقول «صورة» (حتى لا تُسمع «سورة»).
+const SPOKEN_MESSAGES = ["welcome", "imageShown", "actionFailed", "busy", "pageAlready", "pageOpened", "needResult", "dictationEmpty", "replaceAsk", "dictationReview", "compound", "clarify", "negated", "outOfScope", "unclear", "voiceUnsupported", "micDenied", "noSpeech", "noMic", "network", "languageUnsupported", "recognitionFailed"];
+// هذه الإجابات تُغلق اللوحة أو تُعلن بإشعار، فلا تُنطق.
+const SILENT_INTENTS = new Set(["start_review", "open_context", "open_tafsir"]);
+test("every spoken reply has a prepared, hosted recording", () => {
+  for (const k of SPOKEN_MESSAGES) assert.ok(clipFor((messages as Record<string, string>)[k]), `M.${k}`);
+  for (const i of intents) if (!SILENT_INTENTS.has(i.id)) assert.ok(clipFor(i.spoken ?? i.answer), `I.${i.id}`);
+  assert.equal(Object.keys(audioEntries).length, SPOKEN_MESSAGES.length + intents.length - SILENT_INTENTS.size);
+  for (const [key, e] of Object.entries(audioEntries)) {
+    assert.ok(displayTextFor(key), key);
+    const file = `public${AUDIO_BASE}${e.file}`;
+    assert.ok(existsSync(file), file);
+    const size = statSync(file).size;
+    assert.ok(size > 8000 && size < 250000, `${file}: ${size}`);
+    assert.equal(readFileSync(file).subarray(0, 3).toString("latin1"), "ID3", `${file} is MP3`);
+  }
+  assert.equal(clipFor("نص كتبه الزائر"), null);
+});
+test("spoken texts are fully vocalised Fusha, say «لقطة» not «صورة», and keep the punctuation rules", () => {
+  const harakat = /[\u064B-\u0652]/g;
+  for (const [key, e] of Object.entries(audioEntries)) {
+    const letters = (e.spoken.match(/[\u0621-\u064A]/g) ?? []).length;
+    const marks = (e.spoken.match(harakat) ?? []).length;
+    assert.ok(marks / letters > 0.6, `${key}: ${marks}/${letters}`);
+    assert.doesNotMatch(e.spoken, /صور/, key);
+    assert.doesNotMatch(e.spoken, /\S[؟!]/, key);
+    assert.doesNotMatch(e.spoken, /[﴿﴾]/, key);
+  }
+});
+test("a clip player resolves on end, reports failure, and cancels without leaking", async () => {
+  const make = (mode: "end" | "error" | "reject") => () => {
+    const a = {src: "", preload: "", currentTime: 0, paused: true, onended: null as (() => void) | null, onerror: null as (() => void) | null,
+      play() {a.paused = false; if (mode === "reject") return Promise.reject(new Error("blocked")); setTimeout(() => mode === "end" ? a.onended?.() : a.onerror?.(), 5); return Promise.resolve();},
+      pause() {a.paused = true;}};
+    return a;
+  };
+  assert.deepEqual(await playClip("/x.mp3", make("end")).done, {ok: true});
+  assert.deepEqual(await playClip("/x.mp3", make("error")).done, {ok: false});
+  assert.deepEqual(await playClip("/x.mp3", make("reject")).done, {ok: false});
+  const p = playClip("/x.mp3", make("end")); p.cancel();
+  assert.deepEqual(await p.done, {ok: true});
 });
