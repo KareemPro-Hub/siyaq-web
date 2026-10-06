@@ -1,0 +1,29 @@
+{
+  "fill": {
+    "solid": "extended-srgb:0.14118,0.17255,0.35294,1.00000"
+  },
+  "groups": [
+    {
+      "layers": [
+        {
+          "glass": false,
+          "image-name": "siyaq-approved-logo.png",
+          "name": "siyaq-approved-logo"
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": [
+      "iOS"
+    ]
+  }
+}
