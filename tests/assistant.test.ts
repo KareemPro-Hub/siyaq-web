@@ -176,3 +176,28 @@ test("a clip player resolves on end, reports failure, and cancels without leakin
   const p = playClip("/x.mp3", make("end")); p.cancel();
   assert.deepEqual(await p.done, {ok: true});
 });
+
+test("recognition network errors finish immediately without acting on partial words", async () => {
+  const Ctor = fakeRecognition(r => {r.onresult?.(result("افتح", false)); r.onerror?.({error: "network"});});
+  assert.deepEqual(await listenOnce(() => {}, {Ctor, timeoutMs: 100})!.result, {ok: false, error: "network"});
+});
+
+test("buffered clips wait for all bytes and cancellation never plays a late download", async () => {
+  const saved = globalThis.fetch;
+  let ready!: (blob: Blob) => void, played = 0;
+  globalThis.fetch = (async () => ({ok: true, blob: () => new Promise<Blob>(resolve => {ready = resolve;})})) as unknown as typeof fetch;
+  const audio = {src: "", preload: "", currentTime: 0, onended: null as (() => void) | null, onerror: null as (() => void) | null,
+    play() {played++; return Promise.resolve();}, pause() {}};
+  try {
+    const clip = playClip("/assistant-audio/buffer-regression.mp3", () => audio, {buffer: true});
+    await Promise.resolve(); assert.equal(played, 0);
+    ready(new Blob(["fixture bytes"], {type: "audio/mpeg"}));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(played, 1); assert.ok(audio.src.startsWith("blob:")); audio.onended?.();
+    assert.deepEqual(await clip.done, {ok: true});
+    const cancelled = playClip("/assistant-audio/cancel-regression.mp3", () => audio, {buffer: true});
+    await Promise.resolve(); cancelled.cancel(); ready(new Blob(["fixture bytes"]));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(played, 1); assert.deepEqual(await cancelled.done, {ok: true});
+  } finally {globalThis.fetch = saved;}
+});

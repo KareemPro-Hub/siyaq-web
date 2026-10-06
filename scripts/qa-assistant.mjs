@@ -16,6 +16,16 @@ const results = []; const ok = (name, pass, detail = "") => {results.push({name,
 
 // محاكاة الصوت. mode: normal | denied | network | none (لا تعرف) | noaudio (فشل تشغيل الملفات)
 function mockSpeech(mode) {
+  // Pass-through instrumentation: map each buffered blob back to its original hosted clip.
+  const blobSources = new WeakMap(), clipSources = new Map();
+  const originalFetch = window.fetch.bind(window), originalObjectUrl = URL.createObjectURL.bind(URL);
+  window.fetch = async (...args) => {
+    const response = await originalFetch(...args), originalBlob = response.blob.bind(response);
+    response.blob = async () => {const blob = await originalBlob(); blobSources.set(blob, String(args[0])); return blob;};
+    return response;
+  };
+  URL.createObjectURL = blob => {const url = originalObjectUrl(blob); clipSources.set(url, blobSources.get(blob)); return url;};
+
   const log = window.__a = {events: [], speaks: [], recs: 0, mic: 0, synth: 0, overlap: 0};
   let speakingNow = false, current = null;
   // المساعد لا يستخدم صوت الجهاز إطلاقًا؛ أي استدعاء له يُسجَّل خطأً.
@@ -24,7 +34,7 @@ function mockSpeech(mode) {
     constructor() {this.src = ""; this.preload = ""; this.currentTime = 0; this.onended = null; this.onerror = null;}
     play() {
       if (current && current !== this) log.overlap++; // تشغيل رد جديد قبل إيقاف السابق
-      log.speaks.push(this.src); log.events.push("speak");
+      log.speaks.push(clipSources.get(this.src) || this.src); log.events.push("speak");
       if (mode === "noaudio") return Promise.reject(new Error("NotAllowedError"));
       speakingNow = true; current = this;
       setTimeout(() => {if (current === this) {speakingNow = false; current = null; this.onended?.();}}, 400);
@@ -267,7 +277,7 @@ for (const [mode, name, msg] of [["denied", "رفض إذن الميكروفون"
   await page.waitForTimeout(250);
   const s = await a(page);
   ok(`${name}: رسالة واضحة دون إعادة تشغيل`, (await lastAssistant(page).innerText()) === msg && s.recs === 1);
-  if (mode === "denied") ok("بعد الرفض يتعطل زر الصوت وتبقى الكتابة", await panel(page).getByRole("button", {name: M.talk}).isDisabled() && await page.locator("#assistant-input").isEnabled());
+  if (mode === "denied") ok("بعد الرفض يظل زر إعادة المحاولة والكتابة متاحين", await panel(page).getByRole("button", {name: M.talk}).isEnabled() && await page.locator("#assistant-input").isEnabled());
   await ask(page, "هل الخدمة مجانية ؟");
   ok(`${name}: الكتابة تعمل`, (await lastAssistant(page).innerText()) === I.free.answer);
   ok(`لا أخطاء JavaScript (${name})`, errors.length === 0, errors.join(" | "));

@@ -11,7 +11,7 @@ import {listenOnce, playClip, recognitionCtor, type Listening, type RecognitionE
 import {clipFor} from "@/lib/assistant/audio";
 
 type Entry = {id: number; from: "assistant" | "user"; text: string; heard?: boolean; actions?: AssistantAction[]; options?: Intent[]; heardText?: string; replace?: {text: string; review: boolean}};
-type Status = "idle" | "listening" | "speaking";
+type Status = "idle" | "listening" | "loadingAudio" | "speaking";
 const ERROR_TEXT: Record<Exclude<RecognitionErrorKind, "aborted">, string> = {"denied": M.micDenied, "no-speech": M.noSpeech, "no-mic": M.noMic, "network": M.network, "language": M.languageUnsupported, "failed": M.recognitionFailed};
 const REVIEW_ACTION: AssistantAction = {type: "focusQuote", label: "راجع اقتباسًا"};
 const MAX_ENTRIES = 30;
@@ -58,8 +58,9 @@ export function AssistantPanel({onClose}: {onClose: () => void}) {
     if (!url) return;
     listening.current?.abort(); listening.current = null; // لا استماع أثناء النطق، حتى لا يسمع المساعد نفسه.
     speaking.current?.cancel();
-    const s = playClip(url);
-    speaking.current = s; setStatus("speaking");
+    setStatus("loadingAudio");
+    const s = playClip(url, undefined, {onStart: () => {if (alive.current && speaking.current === s) setStatus("speaking");}});
+    speaking.current = s;
     void s.done.then(({ok}) => {
       if (!alive.current || speaking.current !== s) return;
       speaking.current = null; setStatus("idle");
@@ -163,7 +164,7 @@ export function AssistantPanel({onClose}: {onClose: () => void}) {
     else if (run.type === "page") openPage(run.path, i.answer);
     else if (run.type === "openTab") openTab(run.tab);
     else if (run.type === "dictate") {
-      if (!canListen || micBlocked) {say(M.voiceUnsupported, {actions: [REVIEW_ACTION]}); return;}
+      if (!canListen) {say(M.voiceUnsupported, {actions: [REVIEW_ACTION]}); return;}
       setDictating(true); say(i.answer);
     }
   }, [say, focusQuote, showImage, openPage, openTab, canListen, micBlocked]);
@@ -186,6 +187,7 @@ export function AssistantPanel({onClose}: {onClose: () => void}) {
 
   async function toggleMic() {
     if (status === "listening") {listening.current?.stop(); return;}
+    setMicBlocked(false);
     speaking.current?.cancel(); speaking.current = null; // لا نطق أثناء الاستماع.
     const l = listenOnce(text => {if (alive.current) setInterim(text);});
     if (!l) {say(M.voiceUnsupported); return;}
@@ -202,16 +204,17 @@ export function AssistantPanel({onClose}: {onClose: () => void}) {
   function toggleSpeech() {
     const next = !speechOn;
     setSpeechOn(next); speechOnRef.current = next;
-    if (!next) {speaking.current?.cancel(); speaking.current = null; setStatus(s => s === "speaking" ? "idle" : s);}
+    if (!next) {speaking.current?.cancel(); speaking.current = null; setStatus(s => (s === "speaking" || s === "loadingAudio") ? "idle" : s);}
   }
 
-  const micUnavailable = !canListen || micBlocked;
-  const statusText = status === "listening" ? (dictating ? `${M.listening} ${M.dictationStart}` : M.listening) : status === "speaking" ? M.speaking : "";
+  const micUnavailable = !canListen;
+  const statusText = status === "loadingAudio" ? "نجهّز الرد الصوتي…" : status === "listening" ? (dictating ? `${M.listening} ${M.dictationStart}` : M.listening) : status === "speaking" ? M.speaking : "";
   return <section className="assistant-panel" role="dialog" aria-modal="false" aria-labelledby="assistant-title" onKeyDown={e => {if (e.key === "Escape") {e.stopPropagation(); onClose();}}}>
     <header className="assistant-head">
       <h2 id="assistant-title" ref={title} tabIndex={-1}>{M.title}</h2>
       <div className="assistant-head-actions">
         <button type="button" className="assistant-icon" onClick={toggleSpeech} aria-pressed={speechOn} aria-label={M.speechToggle} title={M.speechToggle}>{speechOn ? <Volume2 aria-hidden="true"/> : <VolumeX aria-hidden="true"/>}</button>
+        <button type="button" className="assistant-icon" onClick={() => {stopAudio(); setDictating(false);}} aria-label="إيقاف الصوت الآن" title="إيقاف الصوت الآن" disabled={status === "idle"}><Square aria-hidden="true" size={18} fill="currentColor"/></button>
         <button type="button" className="assistant-icon" onClick={onClose} aria-label={M.close}><X aria-hidden="true"/></button>
       </div>
     </header>
@@ -237,7 +240,7 @@ export function AssistantPanel({onClose}: {onClose: () => void}) {
       <p className="assistant-status" role="status" aria-live="polite">{statusText}{status === "listening" && interim && <span className="assistant-interim"> «{interim}»</span>}</p>
       <div className="assistant-row">
         <button type="button" className={`button assistant-mic${status === "listening" ? " is-listening" : ""}`} onClick={() => void toggleMic()} disabled={micUnavailable} aria-pressed={status === "listening"}>{status === "listening" ? <><Square aria-hidden="true" size={18}/>{M.stopListening}</> : <><Mic aria-hidden="true" size={20}/>{M.talk}</>}</button>
-        {status === "speaking" && <button type="button" className="text-button" onClick={() => {speaking.current?.cancel(); speaking.current = null; setStatus("idle");}}>{M.stopSpeaking}</button>}
+        {(status === "speaking" || status === "loadingAudio") && <button type="button" className="text-button" onClick={() => {speaking.current?.cancel(); speaking.current = null; setStatus("idle");}}>{M.stopSpeaking}</button>}
         <button type="button" className="text-button" onClick={() => setShowStarters(s => !s)} aria-expanded={showStarters}>{M.moreQuestions}</button>
       </div>
       <form className="assistant-form" onSubmit={e => {e.preventDefault(); const t = typed; setTyped(""); handle(t, false);}}>
@@ -245,7 +248,7 @@ export function AssistantPanel({onClose}: {onClose: () => void}) {
         <input id="assistant-input" value={typed} onChange={e => setTyped(e.target.value)} placeholder={M.typePlaceholder} maxLength={300} autoComplete="off" enterKeyHint="send"/>
         <button type="submit" className="assistant-icon" aria-label={M.send} disabled={!typed.trim()}><Send aria-hidden="true"/></button>
       </form>
-      {(micUnavailable || !voiceUsed) && <p className="assistant-privacy">{micUnavailable ? (canListen ? M.micDenied : M.voiceUnsupported) : M.voicePrivacy}</p>}
+      {(micUnavailable || micBlocked || !voiceUsed) && <p className="assistant-privacy">{micUnavailable ? M.voiceUnsupported : micBlocked ? M.micDenied : M.voicePrivacy}</p>}
     </div>
   </section>;
 }

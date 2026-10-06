@@ -9,11 +9,21 @@ const browser = await chromium.launch({executablePath: process.env.QA_BROWSER ||
 const results = []; const ok = (name, pass, detail = "") => {results.push({name, pass: !!pass}); console.log(pass ? "PASS" : "FAIL", name, detail);};
 const ctx = await browser.newContext({viewport: {width: 390, height: 844}, isMobile: true, hasTouch: true});
 await ctx.addInitScript(() => {
+  // Pass-through instrumentation: map each buffered blob back to its original hosted clip.
+  const blobSources = new WeakMap(), clipSources = new Map();
+  const originalFetch = window.fetch.bind(window), originalObjectUrl = URL.createObjectURL.bind(URL);
+  window.fetch = async (...args) => {
+    const response = await originalFetch(...args), originalBlob = response.blob.bind(response);
+    response.blob = async () => {const blob = await originalBlob(); blobSources.set(blob, String(args[0])); return blob;};
+    return response;
+  };
+  URL.createObjectURL = blob => {const url = originalObjectUrl(blob); clipSources.set(url, blobSources.get(blob)); return url;};
+
   const w = window.__p = {max: 0, starts: [], hosts: new Set()};
   const playing = new Set();
   const upd = () => {w.now = playing.size; w.max = Math.max(w.max, playing.size);};
   const play = HTMLMediaElement.prototype.play, pause = HTMLMediaElement.prototype.pause;
-  HTMLMediaElement.prototype.play = function () {const r = play.call(this); w.starts.push(new URL(this.src).pathname); w.hosts.add(new URL(this.src).host); this.addEventListener("playing", () => {playing.add(this); upd();}, {once: true}); this.addEventListener("ended", () => {playing.delete(this); upd();}, {once: true}); return r;};
+  HTMLMediaElement.prototype.play = function () {const r = play.call(this); w.starts.push(new URL(clipSources.get(this.src) || this.src, location.href).pathname); w.hosts.add(new URL(clipSources.get(this.src) || this.src, location.href).host); this.addEventListener("playing", () => {playing.add(this); upd();}, {once: true}); this.addEventListener("ended", () => {playing.delete(this); upd();}, {once: true}); return r;};
   HTMLMediaElement.prototype.pause = function () {playing.delete(this); upd(); return pause.call(this);};
   w.playing = () => [...playing].filter(a => !a.paused).length;
 });
@@ -30,6 +40,10 @@ const ask = async t => {await page.locator("#assistant-input").fill(t); await pa
 await ask("ما سِياق ؟"); await page.waitForTimeout(800);
 s = await p();
 ok("رد جديد يوقف الترحيب: صوت واحد فقط", s.now === 1 && s.max === 1 && s.starts.at(-1) === "/assistant-audio/intent-what_is.mp3", JSON.stringify(s));
+await page.getByRole("button", {name: "إيقاف الصوت الآن", exact: true}).tap(); await page.waitForTimeout(200);
+ok("أيقونة الإيقاف بجوار السماعة توقف الصوت فورًا", (await p()).now === 0);
+await ask("ما سِياق ؟"); await page.waitForTimeout(600);
+ok("الإيقاف لا يكتم الردود التالية", (await p()).now === 1);
 await ask("هل الخدمة مجانية ؟"); await page.waitForTimeout(800);
 s = await p();
 ok("رد ثالث سريع: ما زال صوت واحد", s.now === 1 && s.max === 1 && s.starts.at(-1) === "/assistant-audio/intent-free.mp3", JSON.stringify(s));
